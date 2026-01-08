@@ -1,7 +1,10 @@
-import { GoogleMap, LoadScript, Marker, Polyline, InfoWindow } from '@react-google-maps/api';
+import { GoogleMap, useJsApiLoader, Polyline, InfoWindow, OverlayView } from '@react-google-maps/api';
 import { useState, useCallback, useEffect } from 'react';
 
 const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '';
+
+// Libraries to load
+const libraries = ['geometry'];
 
 const defaultCenter = { lat: 13.0827, lng: 80.2707 }; // Chennai
 
@@ -65,6 +68,13 @@ export default function RouteMap({
 }) {
     const [map, setMap] = useState(null);
     const [selectedMarker, setSelectedMarker] = useState(null);
+
+    // Use the hook to load Google Maps API (prevents duplicate loading)
+    const { isLoaded, loadError } = useJsApiLoader({
+        googleMapsApiKey: GOOGLE_MAPS_API_KEY,
+        id: 'google-map-script',
+        libraries: libraries,
+    });
 
     const onLoad = useCallback((map) => {
         setMap(map);
@@ -137,88 +147,109 @@ export default function RouteMap({
         );
     }
 
+    if (loadError) {
+        return (
+            <div className="map-placeholder" style={{ height }}>
+                <div className="map-placeholder-content">
+                    <p>❌ Map Error</p>
+                    <p className="text-sm">Failed to load Google Maps</p>
+                </div>
+            </div>
+        );
+    }
+
+    if (!isLoaded) {
+        return (
+            <div className="map-placeholder" style={{ height }}>
+                <div className="map-placeholder-content">
+                    <p>🗺️ Loading Map...</p>
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div style={{ height }}>
-            <LoadScript googleMapsApiKey={GOOGLE_MAPS_API_KEY}>
-                <GoogleMap
-                    mapContainerStyle={containerStyle}
-                    center={origin || defaultCenter}
-                    zoom={10}
-                    onLoad={onLoad}
-                    onUnmount={onUnmount}
-                    onClick={handleMapClick}
-                    options={{
-                        styles: mapStyles,
-                        disableDefaultUI: false,
-                        zoomControl: true,
-                        mapTypeControl: false,
-                        streetViewControl: false,
-                        fullscreenControl: true,
-                    }}
-                >
-                    {/* Origin Marker */}
+            <GoogleMap
+                mapContainerStyle={containerStyle}
+                center={origin || defaultCenter}
+                zoom={10}
+                onLoad={onLoad}
+                onUnmount={onUnmount}
+                onClick={handleMapClick}
+                options={{
+                    styles: mapStyles,
+                    disableDefaultUI: false,
+                    zoomControl: true,
+                    mapTypeControl: false,
+                    streetViewControl: false,
+                    fullscreenControl: true,
+                }}
+            >
+                    {/* Origin Marker - Custom div instead of deprecated Marker */}
                     {showMarkers && origin && (
-                        <Marker
+                        <OverlayView
                             position={origin}
-                            icon={{
-                                path: window.google.maps.SymbolPath.CIRCLE,
-                                scale: 12,
-                                fillColor: '#10b981',
-                                fillOpacity: 1,
-                                strokeColor: '#fff',
-                                strokeWeight: 3,
-                            }}
-                            onClick={() => setSelectedMarker({ type: 'origin', ...origin })}
-                        />
+                            mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}
+                        >
+                            <div 
+                                className="custom-marker origin-marker"
+                                onClick={() => setSelectedMarker({ type: 'origin', ...origin })}
+                                title="Origin"
+                            >
+                                <div className="marker-dot" style={{ backgroundColor: '#10b981' }}></div>
+                            </div>
+                        </OverlayView>
                     )}
 
                     {/* Destination Marker */}
                     {showMarkers && destination && (
-                        <Marker
+                        <OverlayView
                             position={destination}
-                            icon={{
-                                path: window.google.maps.SymbolPath.CIRCLE,
-                                scale: 12,
-                                fillColor: '#ef4444',
-                                fillOpacity: 1,
-                                strokeColor: '#fff',
-                                strokeWeight: 3,
-                            }}
-                            onClick={() => setSelectedMarker({ type: 'destination', ...destination })}
-                        />
+                            mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}
+                        >
+                            <div 
+                                className="custom-marker destination-marker"
+                                onClick={() => setSelectedMarker({ type: 'destination', ...destination })}
+                                title="Destination"
+                            >
+                                <div className="marker-dot" style={{ backgroundColor: '#ef4444' }}></div>
+                            </div>
+                        </OverlayView>
                     )}
 
                     {/* Waypoint Markers */}
                     {showMarkers && waypoints.map((wp, index) => (
-                        <Marker
+                        <OverlayView
                             key={`waypoint-${index}`}
                             position={wp}
-                            label={{
-                                text: `${index + 1}`,
-                                color: '#fff',
-                                fontWeight: 'bold',
-                            }}
-                            onClick={() => setSelectedMarker({ type: 'waypoint', index, ...wp })}
-                        />
+                            mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}
+                        >
+                            <div 
+                                className="custom-marker waypoint-marker"
+                                onClick={() => setSelectedMarker({ type: 'waypoint', index, ...wp })}
+                            >
+                                <span>{index + 1}</span>
+                            </div>
+                        </OverlayView>
                     ))}
 
                     {/* Checkpoint Markers */}
                     {showMarkers && checkpoints.map((cp, index) => (
                         cp.lat && cp.lng && (
-                            <Marker
+                            <OverlayView
                                 key={`checkpoint-${index}`}
                                 position={{ lat: cp.lat, lng: cp.lng }}
-                                icon={{
-                                    path: window.google.maps.SymbolPath.BACKWARD_CLOSED_ARROW,
-                                    scale: 6,
-                                    fillColor: cp.is_handoff ? '#d946ef' : '#6366f1',
-                                    fillOpacity: 1,
-                                    strokeColor: '#fff',
-                                    strokeWeight: 2,
-                                    rotation: 0,
-                                }}
-                                onClick={() => setSelectedMarker({ type: 'checkpoint', ...cp })}
-                            />
+                                mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}
+                            >
+                                <div 
+                                    className={`custom-marker checkpoint-marker ${cp.is_handoff ? 'handoff' : ''}`}
+                                    onClick={() => setSelectedMarker({ type: 'checkpoint', ...cp })}
+                                    title={cp.is_handoff ? 'Handoff Point' : 'Checkpoint'}
+                                >
+                                    <div className="marker-arrow"></div>
+                                </div>
+                            </OverlayView>
                         )
                     ))}
 
@@ -234,19 +265,6 @@ export default function RouteMap({
                             }}
                         />
                     ))}
-
-                    {/* Simple route line if no routes but origin/destination exist */}
-                    {routes.length === 0 && origin && destination && (
-                        <Polyline
-                            path={[origin, ...waypoints, destination]}
-                            options={{
-                                strokeColor: '#6366f1',
-                                strokeOpacity: 0.8,
-                                strokeWeight: 4,
-                                geodesic: true,
-                            }}
-                        />
-                    )}
 
                     {/* Info Window */}
                     {selectedMarker && (
@@ -285,7 +303,6 @@ export default function RouteMap({
                         </InfoWindow>
                     )}
                 </GoogleMap>
-            </LoadScript>
         </div>
     );
 }
@@ -333,6 +350,65 @@ const placeholderStyles = `
   color: #666;
   margin: 2px 0;
   font-size: 13px;
+}
+
+/* Custom Markers (replacement for deprecated google.maps.Marker) */
+.custom-marker {
+  cursor: pointer;
+  transform: translate(-50%, -50%);
+  transition: transform 0.15s ease;
+}
+
+.custom-marker:hover {
+  transform: translate(-50%, -50%) scale(1.2);
+}
+
+.marker-dot {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 3px solid white;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+}
+
+.waypoint-marker {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #6366f1;
+  border: 2px solid white;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-weight: bold;
+  font-size: 12px;
+}
+
+.checkpoint-marker {
+  width: 20px;
+  height: 20px;
+  background: #6366f1;
+  border: 2px solid white;
+  border-radius: 4px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+}
+
+.checkpoint-marker.handoff {
+  background: #d946ef;
+}
+
+.marker-arrow {
+  width: 0;
+  height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-top: 8px solid white;
+  position: absolute;
+  bottom: -6px;
+  left: 50%;
+  transform: translateX(-50%);
 }
 `;
 

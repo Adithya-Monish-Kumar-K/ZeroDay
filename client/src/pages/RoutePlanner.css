@@ -66,9 +66,31 @@
 
 .confirmed-address {
     font-size: 0.8125rem;
-    color: var(--dark-text-secondary);
+    color: var(--success-400);
     margin-top: var(--space-2);
     display: block;
+}
+
+.geocoding-text {
+    font-size: 0.8125rem;
+    color: var(--primary-400);
+    margin-top: var(--space-2);
+    display: block;
+    font-style: italic;
+}
+
+.geocode-error {
+    font-size: 0.8125rem;
+    color: var(--error-400);
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    padding: var(--space-3);
+    border-radius: var(--radius-md);
+    margin-top: var(--space-2);
+}
+
+.location-marker.confirmed {
+    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.3);
 }
 
 /* Waypoints */
@@ -162,6 +184,74 @@
 .summary-stat .stat-label {
     font-size: 0.75rem;
     color: var(--dark-text-secondary);
+}
+
+/* Optimizer savings badge */
+.optimizer-savings {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin-top: var(--space-3);
+    padding: var(--space-2) var(--space-3);
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.15), rgba(217, 70, 239, 0.15));
+    border: 1px solid var(--primary-400);
+    border-radius: var(--radius-md);
+    color: var(--primary-300);
+    font-size: 0.875rem;
+    font-weight: 500;
+}
+
+.optimizer-savings svg {
+    color: var(--accent-400);
+}
+
+/* Route Legs Breakdown */
+.route-legs {
+    margin-top: var(--space-4);
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--dark-border);
+}
+
+.route-legs h5 {
+    font-size: 0.875rem;
+    color: var(--dark-text-secondary);
+    margin-bottom: var(--space-3);
+}
+
+.route-leg-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-2) 0;
+    font-size: 0.8125rem;
+}
+
+.route-leg-item .leg-number {
+    width: 20px;
+    height: 20px;
+    background: var(--primary-500);
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.7rem;
+    font-weight: 600;
+    flex-shrink: 0;
+}
+
+.route-leg-item .leg-details {
+    flex: 1;
+    color: var(--dark-text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.route-leg-item .leg-distance {
+    color: var(--primary-400);
+    font-weight: 500;
+    flex-shrink: 0;
 }
 
 /* Optimized Result */
