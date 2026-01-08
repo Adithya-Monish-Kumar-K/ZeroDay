@@ -409,6 +409,10 @@ All checkpoint photos are:
 - [ ] **Insurance API:** Automated cargo insurance quotes and claims
 
 ---
+## DEMO VIDEO 
+https://vimeo.com/1152629451?share=copy&fl=sv&fe=ci
+
+---
 
 ## 🤝 Contributing
 
@@ -421,14 +425,6 @@ This is a hackathon project, but we welcome feedback and suggestions! Please ope
 MIT License - See LICENSE file for details
 
 ---
-
-<div align="center">
-
-**Built with ❤️ for Build2Break Hackathon 2026**
-
-[Live Demo](#) • [Video Walkthrough](#) • [Presentation Slides](#)
-
-</div>
 
 ---
 
