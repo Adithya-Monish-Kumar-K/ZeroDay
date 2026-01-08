@@ -87,7 +87,11 @@ function App() {
                     <Route path="/shipment/:id" element={<ShipmentDetail />} />
                     <Route path="/tracking" element={<Tracking />} />
                     <Route path="/pricing" element={<Pricing />} />
-                    <Route path="/optimizer" element={<Optimizer />} />
+                    <Route path="/optimizer" element={
+                        <ProtectedRoute allowedRoles={['shipper', 'admin']}>
+                            <Optimizer />
+                        </ProtectedRoute>
+                    } />
                     <Route path="/settings" element={<div className="card"><h2>Settings (Coming Soon)</h2></div>} />
 
                     {/* Shipper Only */}

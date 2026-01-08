@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import './ShipmentDetail.css';
 
-const STATUS_STEPS = ['pending', 'accepted', 'picked_up', 'in_transit', 'delivered'];
+const STATUS_STEPS = ['posted', 'assigned', 'picked_up', 'in_transit', 'delivered'];
 
 export default function ShipmentDetail() {
     const { id } = useParams();
@@ -174,16 +174,34 @@ export default function ShipmentDetail() {
             </div>
 
             <div className="detail-grid">
-                {/* Route Map */}
-                <div className="map-section card">
-                    <h3>Route</h3>
+            {/* Route Map */}
+            <div className="map-section card">
+                <h3>Route</h3>
+                {currentShipment.origin_lat && currentShipment.origin_lng && currentShipment.dest_lat && currentShipment.dest_lng ? (
                     <RouteMap
                         height="350px"
-                        origin={currentShipment.origin}
-                        destination={currentShipment.destination}
-                        checkpoints={checkpoints}
+                        origin={{
+                            lat: parseFloat(currentShipment.origin_lat),
+                            lng: parseFloat(currentShipment.origin_lng),
+                            address: currentShipment.origin_address
+                        }}
+                        destination={{
+                            lat: parseFloat(currentShipment.dest_lat),
+                            lng: parseFloat(currentShipment.dest_lng),
+                            address: currentShipment.dest_address
+                        }}
+                        checkpoints={Array.isArray(checkpoints) ? checkpoints.map(cp => ({
+                            ...cp,
+                            lat: cp.lat ? parseFloat(cp.lat) : undefined,
+                            lng: cp.lng ? parseFloat(cp.lng) : undefined
+                        })) : []}
                     />
-                </div>
+                ) : (
+                    <div className="no-map-data">
+                        <p>Map data unavailable</p>
+                    </div>
+                )}
+            </div>
 
                 {/* Shipment Info */}
                 <div className="info-section">
@@ -193,21 +211,21 @@ export default function ShipmentDetail() {
                             <MapPin size={18} className="origin-icon" />
                             <div>
                                 <span className="label">Pickup</span>
-                                <span className="value">{currentShipment.origin?.address || 'N/A'}</span>
+                                <span className="value">{currentShipment.origin_address || 'N/A'}</span>
                             </div>
                         </div>
                         <div className="info-row">
                             <MapPin size={18} className="dest-icon" />
                             <div>
                                 <span className="label">Delivery</span>
-                                <span className="value">{currentShipment.destination?.address || 'N/A'}</span>
+                                <span className="value">{currentShipment.dest_address || 'N/A'}</span>
                             </div>
                         </div>
                         <div className="info-row">
                             <Clock size={18} />
                             <div>
                                 <span className="label">Pickup Date</span>
-                                <span className="value">{new Date(currentShipment.pickup_date).toLocaleString()}</span>
+                                <span className="value">{currentShipment.pickup_deadline ? new Date(currentShipment.pickup_deadline).toLocaleString() : 'Not set'}</span>
                             </div>
                         </div>
                     </div>
@@ -225,7 +243,7 @@ export default function ShipmentDetail() {
                             <Truck size={18} />
                             <div>
                                 <span className="label">Weight</span>
-                                <span className="value">{currentShipment.weight} tons</span>
+                                <span className="value">{currentShipment.weight_kg ? (currentShipment.weight_kg / 1000).toFixed(1) : '-'} tons</span>
                             </div>
                         </div>
                         <div className="info-row">
@@ -233,7 +251,7 @@ export default function ShipmentDetail() {
                             <div>
                                 <span className="label">Price</span>
                                 <span className="value price">
-                                    {currentShipment.price ? `₹${currentShipment.price.toLocaleString()}` : 'Not set'}
+                                    {currentShipment.total_price_estimate ? `₹${currentShipment.total_price_estimate.toLocaleString()}` : 'Not set'}
                                 </span>
                             </div>
                         </div>

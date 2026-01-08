@@ -10,8 +10,8 @@ import './MyShipments.css';
 
 const STATUS_FILTERS = [
     { value: 'all', label: 'All' },
-    { value: 'pending', label: 'Pending' },
-    { value: 'accepted', label: 'Accepted' },
+    { value: 'posted', label: 'Posted' },
+    { value: 'assigned', label: 'Assigned' },
     { value: 'picked_up', label: 'Picked Up' },
     { value: 'in_transit', label: 'In Transit' },
     { value: 'delivered', label: 'Delivered' },
@@ -33,8 +33,8 @@ export default function MyShipments() {
         if (searchQuery) {
             const query = searchQuery.toLowerCase();
             const matchesId = shipment.id.toLowerCase().includes(query);
-            const matchesOrigin = shipment.origin?.address?.toLowerCase().includes(query);
-            const matchesDest = shipment.destination?.address?.toLowerCase().includes(query);
+            const matchesOrigin = shipment.origin_address?.toLowerCase().includes(query);
+            const matchesDest = shipment.dest_address?.toLowerCase().includes(query);
             if (!matchesId && !matchesOrigin && !matchesDest) return false;
         }
         return true;
@@ -42,8 +42,8 @@ export default function MyShipments() {
 
     const getStatusIcon = (status) => {
         switch (status) {
-            case 'pending': return <Clock size={16} className="status-pending" />;
-            case 'accepted': return <CheckCircle size={16} className="status-accepted" />;
+            case 'posted': return <Clock size={16} className="status-posted" />;
+            case 'assigned': return <CheckCircle size={16} className="status-assigned" />;
             case 'picked_up': return <Package size={16} className="status-picked" />;
             case 'in_transit': return <Truck size={16} className="status-transit" />;
             case 'delivered': return <CheckCircle size={16} className="status-delivered" />;
@@ -54,8 +54,8 @@ export default function MyShipments() {
 
     const getStatusColor = (status) => {
         switch (status) {
-            case 'pending': return 'warning';
-            case 'accepted':
+            case 'posted': return 'warning';
+            case 'assigned':
             case 'picked_up':
             case 'in_transit': return 'primary';
             case 'delivered': return 'success';
@@ -161,18 +161,18 @@ export default function MyShipments() {
                                         <div className="route-cell">
                                             <div className="route-from">
                                                 <MapPin size={14} className="origin" />
-                                                <span>{shipment.origin?.address?.split(',')[0] || 'Origin'}</span>
+                                                <span>{shipment.origin_address?.split(',')[0] || 'Origin'}</span>
                                             </div>
                                             <div className="route-to">
                                                 <MapPin size={14} className="destination" />
-                                                <span>{shipment.destination?.address?.split(',')[0] || 'Destination'}</span>
+                                                <span>{shipment.dest_address?.split(',')[0] || 'Destination'}</span>
                                             </div>
                                         </div>
                                     </td>
                                     <td>
                                         <div className="cargo-cell">
                                             <span className="cargo-type">{shipment.cargo_type}</span>
-                                            <span className="cargo-weight">{shipment.weight} tons</span>
+                                            <span className="cargo-weight">{shipment.weight_kg ? (shipment.weight_kg / 1000).toFixed(1) : '-'} tons</span>
                                         </div>
                                     </td>
                                     <td>
@@ -183,12 +183,12 @@ export default function MyShipments() {
                                     </td>
                                     <td>
                                         <span className="date-cell">
-                                            {new Date(shipment.pickup_date || shipment.created_at).toLocaleDateString()}
+                                            {new Date(shipment.pickup_deadline || shipment.created_at).toLocaleDateString()}
                                         </span>
                                     </td>
                                     <td>
                                         <span className="price-cell">
-                                            {shipment.price ? `₹${shipment.price.toLocaleString()}` : '-'}
+                                            {shipment.total_price_estimate ? `₹${shipment.total_price_estimate.toLocaleString()}` : '-'}
                                         </span>
                                     </td>
                                     <td>

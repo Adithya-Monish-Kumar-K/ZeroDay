@@ -48,12 +48,25 @@ router.get('/', verifyToken, async (req, res) => {
                     shipper:profiles!shipper_id(id, business_name, phone, email)
                 `);
 
-            // Filter by user role - shippers see their own, transporters see all posted
+            // Filter by user role - shippers see their own, transporters see ones they're assigned to
             if (req.user.role === 'shipper') {
                 query = query.eq('shipper_id', req.user.id);
             } else if (req.user.role === 'transporter') {
-                // Transporters can see posted shipments or ones they're assigned to via route_legs
-                query = query.or(`status.eq.posted,shipper_id.eq.${req.user.id}`);
+                // Transporters see shipments where they are assigned (via route_legs or transporter_id)
+                // First, get shipment IDs from route_legs where this transporter is assigned
+                const { data: routeLegs } = await supabase
+                    .from('route_legs')
+                    .select('shipment_id')
+                    .eq('transporter_id', req.user.id);
+                
+                const assignedShipmentIds = routeLegs?.map(rl => rl.shipment_id) || [];
+                
+                if (assignedShipmentIds.length > 0) {
+                    query = query.in('id', assignedShipmentIds);
+                } else {
+                    // No assigned shipments, return empty
+                    return res.json([]);
+                }
             }
 
             if (status) query = query.eq('status', status);
@@ -146,10 +159,15 @@ router.get('/:id', verifyToken, async (req, res) => {
                     )
                 `)
                 .eq('id', id)
-                .single();
+                .limit(1);
 
             if (error) throw error;
-            res.json(shipment);
+            
+            if (!shipment || shipment.length === 0) {
+                return res.status(404).json({ error: 'Shipment not found' });
+            }
+            
+            res.json(shipment[0]);
         } else {
             const shipment = mockShipments.find(s => s.id === id);
             if (!shipment) {
@@ -376,6 +394,97 @@ router.post('/:id/cancel', verifyToken, requireRole('shipper'), async (req, res)
             mockShipments[index].status = 'cancelled';
             mockShipments[index].updated_at = new Date().toISOString();
             res.json(mockShipments[index]);
+        }
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Accept shipment (transporter only)
+router.post('/:id/accept', verifyToken, requireRole('transporter'), async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { vehicle_id, proposed_price } = req.body;
+
+        if (!vehicle_id) {
+            return res.status(400).json({ error: 'Vehicle ID is required' });
+        }
+
+        if (supabase) {
+            // Check if shipment exists and is available
+            const { data: shipment, error: shipmentError } = await supabase
+                .from('shipments')
+                .select('*')
+                .eq('id', id)
+                .eq('status', 'posted')
+                .single();
+
+            if (shipmentError || !shipment) {
+                return res.status(404).json({ error: 'Shipment not found or already assigned' });
+            }
+
+            // Verify vehicle belongs to this transporter
+            const { data: vehicle, error: vehicleError } = await supabase
+                .from('vehicles')
+                .select('*')
+                .eq('id', vehicle_id)
+                .eq('transporter_id', req.user.id)
+                .single();
+
+            if (vehicleError || !vehicle) {
+                return res.status(400).json({ error: 'Invalid vehicle or not owned by you' });
+            }
+
+            // Create route_leg
+            const routeLegData = {
+                shipment_id: id,
+                vehicle_id: vehicle_id,
+                transporter_id: req.user.id,
+                leg_sequence_index: 1,
+                is_last_leg: true,
+                start_location_name: shipment.origin_address,
+                end_location_name: shipment.dest_address,
+                agreed_price: proposed_price || shipment.total_price_estimate,
+                status: 'accepted'
+            };
+
+            const { data: routeLeg, error: routeLegError } = await supabase
+                .from('route_legs')
+                .insert([routeLegData])
+                .select()
+                .single();
+
+            if (routeLegError) throw routeLegError;
+
+            // Update shipment status to assigned
+            const { data: updatedShipment, error: updateError } = await supabase
+                .from('shipments')
+                .update({ status: 'assigned', updated_at: new Date().toISOString() })
+                .eq('id', id)
+                .select()
+                .single();
+
+            if (updateError) throw updateError;
+
+            res.json({
+                message: 'Shipment accepted successfully',
+                shipment: updatedShipment,
+                route_leg: routeLeg
+            });
+        } else {
+            // Mock implementation
+            const shipmentIndex = mockShipments.findIndex(s => s.id === id && s.status === 'posted');
+            if (shipmentIndex === -1) {
+                return res.status(404).json({ error: 'Shipment not found or already assigned' });
+            }
+
+            mockShipments[shipmentIndex].status = 'assigned';
+            mockShipments[shipmentIndex].updated_at = new Date().toISOString();
+
+            res.json({
+                message: 'Shipment accepted successfully',
+                shipment: mockShipments[shipmentIndex]
+            });
         }
     } catch (error) {
         res.status(500).json({ error: error.message });

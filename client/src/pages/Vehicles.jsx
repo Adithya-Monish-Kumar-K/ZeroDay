@@ -12,7 +12,8 @@ const VEHICLE_TYPES = [
     { value: 'refrigerated', label: 'Refrigerated', icon: '❄️' },
     { value: 'container', label: 'Container', icon: '🚢' },
     { value: 'tanker', label: 'Tanker', icon: '🛢️' },
-    { value: 'flatbed', label: 'Flatbed', icon: '🏗️' }
+    { value: 'flatbed', label: 'Flatbed', icon: '🏗️' },
+    { value: 'truck', label: 'Truck', icon: '🚚' }
 ];
 
 const FEATURES = ['gps', 'refrigerated', 'hydraulic_lift', 'covered', 'insured', 'tracking'];
@@ -145,7 +146,7 @@ export default function Vehicles() {
                         <CheckCircle size={24} />
                     </div>
                     <div className="stat-info">
-                        <span className="stat-value">{vehicles.filter(v => v.status === 'available').length}</span>
+                        <span className="stat-value">{vehicles.filter(v => v.is_available === true).length}</span>
                         <span className="stat-label">Available</span>
                     </div>
                 </div>
@@ -154,7 +155,7 @@ export default function Vehicles() {
                         <Truck size={24} />
                     </div>
                     <div className="stat-info">
-                        <span className="stat-value">{vehicles.filter(v => v.status === 'in_use').length}</span>
+                        <span className="stat-value">{vehicles.filter(v => v.is_available === false).length}</span>
                         <span className="stat-label">In Use</span>
                     </div>
                 </div>
@@ -163,7 +164,7 @@ export default function Vehicles() {
                         <Settings size={24} />
                     </div>
                     <div className="stat-info">
-                        <span className="stat-value">{vehicles.filter(v => v.status === 'maintenance').length}</span>
+                        <span className="stat-value">0</span>
                         <span className="stat-label">Maintenance</span>
                     </div>
                 </div>
@@ -172,7 +173,7 @@ export default function Vehicles() {
                         <Package size={24} />
                     </div>
                     <div className="stat-info">
-                        <span className="stat-value">{vehicles.reduce((sum, v) => sum + v.capacity_tons, 0)}</span>
+                        <span className="stat-value">{Math.round(vehicles.reduce((sum, v) => sum + (v.max_capacity_kg || 0), 0) / 1000)}</span>
                         <span className="stat-label">Total Capacity (tons)</span>
                     </div>
                 </div>
@@ -200,7 +201,7 @@ export default function Vehicles() {
                         <div key={vehicle.id} className="vehicle-card card">
                             <div className="vehicle-header">
                                 <div className="vehicle-type-icon">
-                                    {VEHICLE_TYPES.find(t => t.value === vehicle.type)?.icon || '🚛'}
+                                    {VEHICLE_TYPES.find(t => t.value === vehicle.vehicle_type)?.icon || '🚛'}
                                 </div>
                                 <div className="vehicle-actions">
                                     <button
@@ -218,27 +219,27 @@ export default function Vehicles() {
                                 </div>
                             </div>
 
-                            <div className="vehicle-number">{vehicle.vehicle_number}</div>
-                            <div className="vehicle-type">{VEHICLE_TYPES.find(t => t.value === vehicle.type)?.label || vehicle.type}</div>
+                            <div className="vehicle-number">{vehicle.plate_number}</div>
+                            <div className="vehicle-type">{VEHICLE_TYPES.find(t => t.value === vehicle.vehicle_type)?.label || vehicle.vehicle_type}</div>
 
                             <div className="vehicle-capacity">
                                 <div className="capacity-bar">
                                     <div
                                         className="capacity-fill"
-                                        style={{ width: `${(vehicle.current_load / vehicle.capacity_tons) * 100}%` }}
+                                        style={{ width: `${((vehicle.current_load_kg || 0) / (vehicle.max_capacity_kg || 1)) * 100}%` }}
                                     ></div>
                                 </div>
                                 <div className="capacity-text">
-                                    <span>{vehicle.current_load || 0} / {vehicle.capacity_tons} tons</span>
+                                    <span>{vehicle.current_load_kg || 0} / {vehicle.max_capacity_kg} kg</span>
                                     <span className="capacity-percent">
-                                        {Math.round((vehicle.current_load / vehicle.capacity_tons) * 100) || 0}%
+                                        {Math.round(((vehicle.current_load_kg || 0) / (vehicle.max_capacity_kg || 1)) * 100)}%
                                     </span>
                                 </div>
                             </div>
 
-                            {vehicle.features?.length > 0 && (
+                            {vehicle.capabilities?.length > 0 && (
                                 <div className="vehicle-features">
-                                    {vehicle.features.map(feature => (
+                                    {vehicle.capabilities.map(feature => (
                                         <span key={feature} className="feature-tag">
                                             {feature.replace('_', ' ')}
                                         </span>
@@ -247,19 +248,10 @@ export default function Vehicles() {
                             )}
 
                             <div className="vehicle-status">
-                                <span className={`status-badge status-${vehicle.status}`}>
-                                    {getStatusIcon(vehicle.status)}
-                                    {vehicle.status.replace('_', ' ')}
+                                <span className={`status-badge ${vehicle.is_available ? 'status-available' : 'status-in-use'}`}>
+                                    {vehicle.is_available ? <CheckCircle size={16} /> : <Truck size={16} />}
+                                    {vehicle.is_available ? 'Available' : 'In Use'}
                                 </span>
-                                <select
-                                    className="status-select"
-                                    value={vehicle.status}
-                                    onChange={(e) => handleStatusChange(vehicle, e.target.value)}
-                                >
-                                    <option value="available">Available</option>
-                                    <option value="in_use">In Use</option>
-                                    <option value="maintenance">Maintenance</option>
-                                </select>
                             </div>
                         </div>
                     ))}

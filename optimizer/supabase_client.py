@@ -42,6 +42,7 @@ def fetch_transporters(
     
     # Fetch available vehicles with sufficient capacity
     # Convert weight_kg to int to match database column type
+    print(f"[DEBUG] Fetching vehicles with is_available=True and max_capacity_kg >= {int(weight_kg)}")
     vehicles_response = client.table("vehicles").select(
         "id, transporter_id, plate_number, vehicle_type, max_capacity_kg, "
         "current_load_kg, base_rate_per_km, fuel_efficiency_km_l, "
@@ -50,6 +51,10 @@ def fetch_transporters(
     ).eq("is_available", True).gte("max_capacity_kg", int(weight_kg)).execute()
     
     vehicles = vehicles_response.data if vehicles_response.data else []
+    
+    print(f"[DEBUG] Found {len(vehicles)} vehicles in database")
+    for v in vehicles:
+        print(f"  - {v.get('plate_number')}: lat={v.get('current_location_lat')}, lng={v.get('current_location_lng')}")
     
     if not vehicles:
         return []
@@ -95,36 +100,36 @@ def fetch_transporters(
         transporter_id = vehicle["transporter_id"]
         vehicle_type = vehicle["vehicle_type"]
         
-        # Get pricing for this vehicle
+        # Get pricing for this vehicle (use defaults if not found)
         pricing_key = (transporter_id, vehicle_type)
         pricing_data = pricing_lookup.get(pricing_key)
         
-        if not pricing_data:
-            # Skip if no pricing rules available
-            continue
+        # Use default pricing if no rules available
+        default_base_price = 500
+        default_rate_per_km = 15
         
-        # Get availability
+        # Get availability (use defaults if not found)
         availability = availability_lookup.get(transporter_id)
-        if not availability:
-            # Skip if no availability data
-            continue
+        default_radius_km = 1000  # Default 1000km radius - allows finding distant transporters
         
         # Get profile for name
         profile = profiles_lookup.get(transporter_id, {})
         
-        # Get current location (use home base if current not available)
+        # Get current location (use home base parsing or skip if not available)
         current_lat = vehicle.get("current_location_lat")
         current_lng = vehicle.get("current_location_lng")
         
         if current_lat is None or current_lng is None:
-            # Skip vehicles without location
+            # Try to use a default location based on home_base_location
+            # For now, skip vehicles without location
             continue
         
-        # Check if vehicle capabilities match product type
+        # Check if vehicle capabilities match product type (relaxed check)
         capabilities = vehicle.get("capabilities") or []
         # If capabilities list is empty, assume vehicle supports all products
         # Otherwise check if product_type is in capabilities
-        if capabilities and product_type not in capabilities:
+        if capabilities and len(capabilities) > 0 and product_type not in capabilities:
+            # Skip only if capabilities are defined AND product is not in them
             continue
         
         # Calculate available capacity
@@ -138,23 +143,29 @@ def fetch_transporters(
         # Build the transporter object
         location = Location(lat=current_lat, lng=current_lng)
         
-        # Check if transporter can reach origin
+        # Check if transporter can reach origin (use default or configured radius)
         distance_to_origin = geodesic(
             (current_lat, current_lng),
             (origin.lat, origin.lng)
         ).km
         
-        radius_km = availability.get("availability_radius_km", 50)
+        radius_km = availability.get("availability_radius_km", default_radius_km) if availability else default_radius_km
         
         if distance_to_origin > radius_km:
             # Skip if origin is outside transporter's radius
             continue
         
-        # Create pricing object
-        pricing = Pricing(
-            base_price=Decimal(str(pricing_data["base_price"])),
-            rate_per_km=Decimal(str(pricing_data["rate_per_km"]))
-        )
+        # Create pricing object (use defaults if not configured)
+        if pricing_data:
+            pricing = Pricing(
+                base_price=Decimal(str(pricing_data["base_price"])),
+                rate_per_km=Decimal(str(pricing_data["rate_per_km"]))
+            )
+        else:
+            pricing = Pricing(
+                base_price=Decimal(str(default_base_price)),
+                rate_per_km=Decimal(str(default_rate_per_km))
+            )
         
         # Create time window (default hours for now)
         # Could be enhanced to parse available_from/available_until
@@ -169,6 +180,12 @@ def fetch_transporters(
             "van": 60.0,
             "bike": 40.0,
             "tempo": 45.0,
+            "covered": 50.0,
+            "open": 55.0,
+            "refrigerated": 45.0,
+            "container": 40.0,
+            "flatbed": 45.0,
+            "tanker": 40.0,
         }
         avg_speed = speed_map.get(vehicle_type, 50.0)
         

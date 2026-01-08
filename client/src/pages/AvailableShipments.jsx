@@ -34,16 +34,16 @@ export default function AvailableShipments() {
         if (filters.vehicle_type !== 'all' && shipment.vehicle_type_required !== filters.vehicle_type) {
             return false;
         }
-        if (filters.min_weight && shipment.weight < parseFloat(filters.min_weight)) {
+        if (filters.min_weight && (!shipment.weight_kg || (shipment.weight_kg / 1000) < parseFloat(filters.min_weight))) {
             return false;
         }
-        if (filters.max_weight && shipment.weight > parseFloat(filters.max_weight)) {
+        if (filters.max_weight && (!shipment.weight_kg || (shipment.weight_kg / 1000) > parseFloat(filters.max_weight))) {
             return false;
         }
         if (filters.search) {
             const searchLower = filters.search.toLowerCase();
-            const matchesOrigin = shipment.origin?.address?.toLowerCase().includes(searchLower);
-            const matchesDest = shipment.destination?.address?.toLowerCase().includes(searchLower);
+            const matchesOrigin = shipment.origin_address?.toLowerCase().includes(searchLower);
+            const matchesDest = shipment.dest_address?.toLowerCase().includes(searchLower);
             if (!matchesOrigin && !matchesDest) return false;
         }
         return true;
@@ -74,9 +74,20 @@ export default function AvailableShipments() {
     // Get compatible vehicles
     const compatibleVehicles = vehicles.filter(v => {
         if (!selectedShipment) return true;
-        return v.type === selectedShipment.vehicle_type_required &&
-            v.status === 'available' &&
-            v.capacity_tons >= selectedShipment.weight;
+        
+        // Calculate shipment weight in kg (vehicles use max_capacity_kg)
+        const shipmentWeightKg = selectedShipment.weight_kg || 0;
+        
+        // Check if vehicle is available and has enough capacity
+        // Note: vehicle_type_required is optional - if not specified, accept any vehicle type
+        const hasCapacity = v.max_capacity_kg >= shipmentWeightKg;
+        const isAvailable = v.is_available === true;
+        
+        // If shipment specifies vehicle type, check it matches
+        const typeMatches = !selectedShipment.vehicle_type_required || 
+                           v.vehicle_type === selectedShipment.vehicle_type_required;
+        
+        return isAvailable && hasCapacity && typeMatches;
     });
 
     return (
@@ -175,7 +186,7 @@ export default function AvailableShipments() {
                                         <div className="route-dot origin"></div>
                                         <div className="route-info">
                                             <span className="route-label">Pickup</span>
-                                            <span className="route-address">{shipment.origin?.address || 'TBD'}</span>
+                                            <span className="route-address">{shipment.origin_address || 'TBD'}</span>
                                         </div>
                                     </div>
                                     <div className="route-connector">
@@ -188,7 +199,7 @@ export default function AvailableShipments() {
                                         <div className="route-dot destination"></div>
                                         <div className="route-info">
                                             <span className="route-label">Delivery</span>
-                                            <span className="route-address">{shipment.destination?.address || 'TBD'}</span>
+                                            <span className="route-address">{shipment.dest_address || 'TBD'}</span>
                                         </div>
                                     </div>
                                 </div>
@@ -196,11 +207,11 @@ export default function AvailableShipments() {
                                 <div className="shipment-details">
                                     <div className="detail-item">
                                         <Package size={14} />
-                                        <span>{shipment.weight} tons</span>
+                                        <span>{shipment.weight_kg ? (shipment.weight_kg / 1000).toFixed(1) : '-'} tons</span>
                                     </div>
                                     <div className="detail-item">
                                         <Clock size={14} />
-                                        <span>{new Date(shipment.pickup_date).toLocaleDateString()}</span>
+                                        <span>{shipment.pickup_deadline ? new Date(shipment.pickup_deadline).toLocaleDateString() : 'No date'}</span>
                                     </div>
                                     <div className="detail-item">
                                         <Truck size={14} />
@@ -251,8 +262,16 @@ export default function AvailableShipments() {
                             <div className="panel-map">
                                 <RouteMap
                                     height="300px"
-                                    origin={selectedShipment.origin}
-                                    destination={selectedShipment.destination}
+                                    origin={selectedShipment.origin_lat && selectedShipment.origin_lng ? { 
+                                        lat: parseFloat(selectedShipment.origin_lat), 
+                                        lng: parseFloat(selectedShipment.origin_lng),
+                                        address: selectedShipment.origin_address 
+                                    } : null}
+                                    destination={selectedShipment.dest_lat && selectedShipment.dest_lng ? { 
+                                        lat: parseFloat(selectedShipment.dest_lat), 
+                                        lng: parseFloat(selectedShipment.dest_lng),
+                                        address: selectedShipment.dest_address 
+                                    } : null}
                                 />
                             </div>
 
@@ -263,7 +282,7 @@ export default function AvailableShipments() {
                                 </div>
                                 <div className="detail-row">
                                     <span className="detail-label">Weight</span>
-                                    <span className="detail-value">{selectedShipment.weight} tons</span>
+                                    <span className="detail-value">{selectedShipment.weight_kg ? (selectedShipment.weight_kg / 1000).toFixed(1) : '-'} tons</span>
                                 </div>
                                 <div className="detail-row">
                                     <span className="detail-label">Volume</span>
@@ -275,7 +294,7 @@ export default function AvailableShipments() {
                                 </div>
                                 <div className="detail-row">
                                     <span className="detail-label">Pickup Date</span>
-                                    <span className="detail-value">{new Date(selectedShipment.pickup_date).toLocaleString()}</span>
+                                    <span className="detail-value">{selectedShipment.pickup_deadline ? new Date(selectedShipment.pickup_deadline).toLocaleString() : 'Not set'}</span>
                                 </div>
                                 {selectedShipment.description && (
                                     <div className="detail-row">
@@ -311,7 +330,7 @@ export default function AvailableShipments() {
                                 <option value="">Choose a vehicle...</option>
                                 {compatibleVehicles.map(vehicle => (
                                     <option key={vehicle.id} value={vehicle.id}>
-                                        {vehicle.vehicle_number} - {vehicle.type} ({vehicle.capacity_tons} tons)
+                                        {vehicle.plate_number} - {vehicle.vehicle_type} ({vehicle.max_capacity_kg} kg)
                                     </option>
                                 ))}
                             </select>

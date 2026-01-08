@@ -43,10 +43,9 @@ export default function Layout() {
             return [
                 ...commonItems,
                 { to: '/available-shipments', icon: Package, label: 'Available Loads' },
-                { to: '/my-shipments', icon: Truck, label: 'My Shipments' },
+                { to: '/my-shipments', icon: Truck, label: 'Active Jobs' },
                 { to: '/vehicles', icon: Truck, label: 'My Vehicles' },
                 { to: '/routes', icon: Route, label: 'Route Planner' },
-                { to: '/optimizer', icon: Zap, label: 'Optimizer' },
                 { to: '/return-trips', icon: RefreshCw, label: 'Return Trips' },
                 { to: '/earnings', icon: DollarSign, label: 'Earnings' },
                 { to: '/ratings', icon: Star, label: 'My Ratings' },

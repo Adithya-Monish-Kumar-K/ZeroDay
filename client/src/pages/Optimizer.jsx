@@ -1,8 +1,8 @@
-import { useState, useCallback, useRef } from 'react';
-import { GoogleMap, useJsApiLoader, Marker, Polyline, InfoWindow } from '@react-google-maps/api';
+import { useState, useCallback, useRef, useEffect } from 'react';
+import { GoogleMap, useJsApiLoader, Marker, DirectionsRenderer, InfoWindow } from '@react-google-maps/api';
 import { MapPin, Navigation, Package, Zap, Clock, DollarSign, Truck, AlertCircle, CheckCircle } from 'lucide-react';
 import { optimizeApi } from '../api';
-import { useNotificationStore } from '../store';
+import { useNotificationStore, useShipmentStore } from '../store';
 import './Optimizer.css';
 
 const mapContainerStyle = {
@@ -26,6 +26,9 @@ const PRODUCT_TYPES = [
 
 export default function Optimizer() {
     const { addNotification } = useNotificationStore();
+    const { shipments, fetchShipments, isLoading: shipmentsLoading } = useShipmentStore();
+    
+    const [selectedShipment, setSelectedShipment] = useState(null);
     const [origin, setOrigin] = useState(null);
     const [destination, setDestination] = useState(null);
     const [selectingPoint, setSelectingPoint] = useState(null); // 'origin' or 'destination'
@@ -36,10 +39,55 @@ export default function Optimizer() {
     const [results, setResults] = useState(null);
     const [selectedRoute, setSelectedRoute] = useState(null);
     const [showInfo, setShowInfo] = useState(null);
+    const [directions, setDirections] = useState(null);
     const mapRef = useRef(null);
 
+    // Fetch shipper's shipments on mount
+    useEffect(() => {
+        fetchShipments({ status: 'posted' }); // Only fetch posted (unassigned) shipments
+    }, []);
+
+    // Fetch road directions when origin and destination are set
+    useEffect(() => {
+        if (origin && destination && window.google) {
+            const directionsService = new window.google.maps.DirectionsService();
+            
+            directionsService.route(
+                {
+                    origin: origin,
+                    destination: destination,
+                    travelMode: window.google.maps.TravelMode.DRIVING,
+                },
+                (result, status) => {
+                    if (status === 'OK') {
+                        setDirections(result);
+                    } else {
+                        console.error('Directions request failed:', status);
+                        setDirections(null);
+                    }
+                }
+            );
+        } else {
+            setDirections(null);
+        }
+    }, [origin, destination]);
+
+    // When a shipment is selected, auto-populate the form
+    const handleShipmentSelect = (shipmentId) => {
+        const shipment = shipments.find(s => s.id === shipmentId);
+        if (shipment) {
+            setSelectedShipment(shipment);
+            setOrigin({ lat: shipment.origin_lat, lng: shipment.origin_lng });
+            setDestination({ lat: shipment.dest_lat, lng: shipment.dest_lng });
+            setProductType(shipment.cargo_type || 'other');
+            setWeight(shipment.weight_kg || 500);
+        } else {
+            setSelectedShipment(null);
+        }
+    };
+
     const { isLoaded, loadError } = useJsApiLoader({
-        googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_KEY || '',
+        googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '',
         libraries: ['places']
     });
 
@@ -60,7 +108,7 @@ export default function Optimizer() {
 
     const handleOptimize = async () => {
         if (!origin || !destination) {
-            addNotification({ type: 'error', message: 'Please select origin and destination' });
+            addNotification({ type: 'error', message: 'Please select a shipment or set origin and destination' });
             return;
         }
 
@@ -68,11 +116,16 @@ export default function Optimizer() {
         setResults(null);
 
         try {
+            // Use real shipment ID if a shipment is selected, otherwise generate temp ID
+            const shipmentData = selectedShipment 
+                ? { id: selectedShipment.id, weight_kg: selectedShipment.weight_kg }
+                : { id: `temp-${Date.now()}`, weight_kg: weight };
+
             const response = await optimizeApi.chainOptimize(
                 origin,
                 destination,
                 productType,
-                [{ id: `shipment-${Date.now()}`, weight_kg: weight }],
+                [shipmentData],
                 urgency
             );
 
@@ -142,6 +195,37 @@ export default function Optimizer() {
             <div className="optimizer-grid">
                 {/* Left Panel - Controls */}
                 <div className="optimizer-controls card glass">
+                    {/* Shipment Selector */}
+                    <h3><Package size={20} /> Select Shipment</h3>
+                    <div className="form-group">
+                        <select 
+                            className="form-select shipment-select"
+                            value={selectedShipment?.id || ''}
+                            onChange={(e) => handleShipmentSelect(e.target.value)}
+                        >
+                            <option value="">-- Select a shipment to optimize --</option>
+                            {shipmentsLoading ? (
+                                <option disabled>Loading shipments...</option>
+                            ) : shipments.length === 0 ? (
+                                <option disabled>No posted shipments found</option>
+                            ) : (
+                                shipments.map(s => (
+                                    <option key={s.id} value={s.id}>
+                                        {s.cargo_type} - {s.weight_kg}kg | {s.origin_address?.substring(0, 20)}... → {s.dest_address?.substring(0, 20)}...
+                                    </option>
+                                ))
+                            )}
+                        </select>
+                        {selectedShipment && (
+                            <div className="selected-shipment-info">
+                                <span className="shipment-id">ID: {selectedShipment.id.substring(0, 8)}...</span>
+                                <span className="shipment-weight">{selectedShipment.weight_kg} kg</span>
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="form-divider"></div>
+
                     <h3><MapPin size={20} /> Route Selection</h3>
                     
                     <div className="selection-buttons">
@@ -300,21 +384,20 @@ export default function Optimizer() {
                             />
                         )}
 
-                        {/* Route Polylines */}
-                        {selectedRoute && selectedRoute.legs && selectedRoute.legs.map((leg, index) => (
-                            <Polyline
-                                key={index}
-                                path={[
-                                    { lat: leg.from_location.lat, lng: leg.from_location.lng },
-                                    { lat: leg.to_location.lat, lng: leg.to_location.lng }
-                                ]}
+                        {/* Road Route */}
+                        {directions && (
+                            <DirectionsRenderer
+                                directions={directions}
                                 options={{
-                                    strokeColor: getRouteColor(index),
-                                    strokeWeight: 4,
-                                    strokeOpacity: 0.8,
+                                    suppressMarkers: true, // We use custom markers
+                                    polylineOptions: {
+                                        strokeColor: '#10b981',
+                                        strokeWeight: 5,
+                                        strokeOpacity: 0.8,
+                                    },
                                 }}
                             />
-                        ))}
+                        )}
 
                         {/* Info Windows */}
                         {showInfo === 'origin' && origin && (
