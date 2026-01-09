@@ -3,7 +3,14 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-const JWT_SECRET = process.env.JWT_SECRET_KEY || 'default-secret-key';
+const JWT_SECRET = process.env.JWT_SECRET_KEY;
+
+if (!JWT_SECRET) {
+    console.error('CRITICAL SECURITY ERROR: JWT_SECRET_KEY environment variable is not set.');
+    console.error('The server cannot start without a secure JWT secret.');
+    console.error('Please set JWT_SECRET_KEY in your .env file with a strong, random value (minimum 32 characters recommended).');
+    process.exit(1);
+}
 
 export const generateToken = (user) => {
     const expiryDays = parseInt(process.env.JWT_EXPIRY_DAYS) || 7;
